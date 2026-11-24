@@ -10,6 +10,7 @@ from src.config import default_paths
 def main() -> None:
     app = create_app(default_paths())
     s = app.state.ctx.settings
+    print(f"BrainSync: open http://localhost:{s.get('port')}/ (0.0.0.0 is the listen address, not a page)", flush=True)
     uvicorn.run(app, host=s.get("bind"), port=s.get("port"))
 
 
