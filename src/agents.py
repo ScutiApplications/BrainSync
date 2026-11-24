@@ -103,6 +103,29 @@ def command_line(kind: str, exe: str, prompt: str, vault: Path, extra_dir: str |
     return [exe, "exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "-C", str(vault), prompt]
 
 
+def check_prompt(ops: list[dict], dirs: list[str]) -> str:
+    """Ask the agent to compare a setup plan with the config already on this computer. It only advises."""
+    import json
+    return (
+        "You are checking a planned install of agent configuration for duplicates. Do not change any file; only read.\n"
+        f"Existing config folders you may read: {', '.join(dirs)}.\n"
+        "Below is the plan as JSON: each item has id, label, target (the file it writes), replaces (true when the target already exists) "
+        "and manual. Look for items that are redundant: a skill, hook, settings entry or instruction paragraph that already "
+        "exists in the same or a differently named form, or that repeats another item in the plan.\n"
+        "Answer with ONLY a JSON array, no other text. Each element: {\"id\": <plan id>, \"action\": \"skip\" or \"keep\", "
+        "\"reason\": \"one short sentence\"}. Use \"skip\" only when you are sure the item is redundant. Leave out items that are fine.\n"
+        f"PLAN: {json.dumps(ops)}")
+
+
+def read_only_command(kind: str, exe: str, prompt: str, vault: Path, dirs: list[str]) -> list[str]:
+    if kind == "claude":
+        cmd = [exe, "-p", prompt]
+        for d in dirs:
+            cmd += ["--add-dir", d]
+        return cmd + ["--allowedTools", "Read", "Glob", "Grep"]
+    return [exe, "exec", "--sandbox", "read-only", "--skip-git-repo-check", "-C", str(vault), prompt]
+
+
 @dataclass
 class Job:
     kind: str

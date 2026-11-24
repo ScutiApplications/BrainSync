@@ -71,6 +71,7 @@ export const peerApi = {
 
 export interface SetupBody { vault_id: string; projects_root: string; claude: boolean; codex: boolean; selected: number[] }
 export const setupApi = {
+  aiCheck: (b: SetupBody & { agent: string }) => post<JobView>("api/setup/ai-check", b),
   detect: () => get<{ claude: boolean; codex: boolean }>("api/setup/detect"),
   plan: async (b: SetupBody) => (await post<{ ops: SetupOp[] }>("api/setup/plan", b)).ops,
   apply: async (b: SetupBody) => (await post<{ results: SetupResult[] }>("api/setup/apply", b)).results,

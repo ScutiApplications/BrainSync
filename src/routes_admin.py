@@ -20,7 +20,7 @@ from src.importer import apply_import, build_preview
 from src.packager import read_manifest, write_pack
 from src.peer import PeerClient, PeerError
 from src.routes_auth import bearer
-from src.routes_sync import add_sync_routes
+from src.routes_sync import add_sync_routes, pick_agent
 from src.scanner import scan_vault
 from src.security import is_this_machine
 
@@ -95,6 +95,7 @@ class SetupIn(BaseModel):
     projects_root: str = ""
     claude: bool = True
     codex: bool = False
+    agent: str = ""
     selected: list[int] = []
 
 
@@ -302,6 +303,23 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
         ops = await asyncio.to_thread(plan, b)
         return {"ops": [{"id": i, "label": o.label, "diff": agent_setup.render_diff(o),
                          "manual": bool(o.manual)} for i, o in enumerate(ops)]}
+
+    @r.post("/setup/ai-check")
+    async def setup_ai_check(b: SetupIn, request: Request):
+        """Start a read-only agent run that flags redundant plan rows. The agent only advises; nothing is written."""
+        if not is_this_machine(request.client.host if request.client else ""):
+            raise HTTPException(403, "agents only start on the computer BrainSync runs on")
+        ops = await asyncio.to_thread(plan, b)
+        kind, exe = pick_agent(ctx, b.agent)
+        rows = [{"id": i, "label": o.label, "target": str(o.target) if o.target else "", "replaces": o.before is not None,
+                 "manual": bool(o.manual)} for i, o in enumerate(ops)]
+        codex_home = Path(os.environ.get("CODEX_HOME") or ctx.paths.home / ".codex")
+        dirs = [str(ctx.paths.home / ".claude"), str(codex_home)]
+        vault = Path(ctx.vaults.get(b.vault_id)["path"])
+        cmd = agents.read_only_command(kind, exe, agents.check_prompt(rows, dirs), vault, dirs)
+        job = ctx.jobs.start("check", kind, "Check setup plan", cmd, vault, ctx.settings.get("agent_timeout_min") * 60)
+        ctx.state.audit("setup-check", vault_id=b.vault_id, agent=kind)
+        return job.view()
 
     @r.post("/setup/apply")
     async def setup_apply(b: SetupIn):

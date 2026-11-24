@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { fsApi, setupApi, vaultApi, type SetupBody, type SetupOp, type SetupResult, type VerifyRow, type Vault } from "../api/brainsync";
+import { agentApi, fsApi, setupApi, vaultApi, type AgentStatus, type SetupBody, type SetupOp, type SetupResult, type VerifyRow, type Vault } from "../api/brainsync";
 import ActionMessage from "../components/admin/ActionMessage.vue";
 import ConfirmModal from "../components/admin/ConfirmModal.vue";
 import FieldLabel from "../components/admin/FieldLabel.vue";
@@ -18,6 +18,14 @@ const claude = ref(true);
 const codex = ref(true);
 const found = ref({ claude: true, codex: true });
 const intro = ref(true);
+const agentStatus = ref<AgentStatus | null>(null);
+const checkJob = ref<string>("");
+const checking = ref(false);
+const checkNote = ref("");
+const hints = ref<Record<number, string>>({});
+const aiAgents = computed(() => (["claude", "codex"] as const).filter((k) => agentStatus.value?.[k].runnable && agentStatus.value?.[k].enabled));
+const AGENT_LABEL: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
+const hinted = computed(() => Object.keys(hints.value).map(Number).filter((id) => on.value.has(id)));
 const ops = ref<SetupOp[]>([]);
 const on = ref(new Set<number>());
 const results = ref<SetupResult[]>([]);
@@ -51,6 +59,7 @@ onMounted(async () => {
     vaults.value = await vaultApi.list();
     vaultId.value = vaults.value.find((v) => v.active)?.id ?? vaults.value[0]?.id ?? "";
     found.value = await setupApi.detect();
+    agentStatus.value = await agentApi.status();
     // Tick what is installed here; if neither is found, tick both.
     claude.value = found.value.claude || !found.value.codex;
     codex.value = found.value.codex || !found.value.claude;
@@ -101,7 +110,56 @@ const verify = () => guard(async () => {
   rows.value = await setupApi.verify(body.value);
 });
 
+/** The agent answers with a JSON array. Keep only rows that exist in the plan and only "skip" advice; anything else is ignored. */
+function readHints(text: string): Record<number, string> {
+  const s = text.indexOf("[");
+  const e = text.lastIndexOf("]");
+  const out: Record<number, string> = {};
+  if (s < 0 || e < s) return out;
+  let list: unknown;
+  try { list = JSON.parse(text.slice(s, e + 1)); } catch { return out; }
+  if (!Array.isArray(list)) return out;
+  const ids = new Set(ops.value.filter((o) => !o.manual).map((o) => o.id));
+  for (const x of list as { id?: unknown; action?: unknown; reason?: unknown }[]) {
+    if (typeof x?.id === "number" && ids.has(x.id) && x.action === "skip") out[x.id] = String(x.reason ?? "").slice(0, 300);
+  }
+  return out;
+}
+
+async function aiCheck(agent: string) {
+  checking.value = true;
+  checkNote.value = "";
+  hints.value = {};
+  error.value = "";
+  try {
+    let job = await setupApi.aiCheck({ ...body.value, agent });
+    checkJob.value = job.id;
+    while (job.state === "running") {
+      await new Promise((r) => setTimeout(r, 1500));
+      if (checkJob.value !== job.id) return;
+      job = await agentApi.job(job.id);
+    }
+    if (job.state !== "done") {
+      checkNote.value = `The check did not finish (${job.state}).`;
+    } else {
+      hints.value = readHints(job.output);
+      checkNote.value = Object.keys(hints.value).length ? "" : "Nothing looks redundant.";
+    }
+  } catch (err) {
+    error.value = errorMessage(err);
+  } finally {
+    checking.value = false;
+  }
+}
+
+function switchOffHinted() {
+  for (const id of hinted.value) on.value.delete(id);
+}
+
 function back() {
+  checkJob.value = "";
+  hints.value = {};
+  checkNote.value = "";
   ops.value = [];
   results.value = [];
   intro.value = false;
@@ -215,14 +273,24 @@ function flip(id: number, checked: boolean) {
         <h2 id="setup-plan">2. Review changes</h2>
         <div class="admin-panel-tools">
           <PanelHelp title="Review changes"><p>Each row is one change. Switch off any you do not want. Open a row to see exactly what changes. Rows marked "do by hand" cannot be done automatically.</p></PanelHelp>
-          <button type="button" class="chip" :disabled="busy" @click="back">Back</button>
-          <button type="button" class="primary" :disabled="busy || !on.size" :aria-busy="busy" @click="confirmOpen = true">Apply {{ on.size }} change{{ on.size === 1 ? "" : "s" }}</button>
+          <button type="button" class="chip" :disabled="busy || checking" @click="back">Back</button>
+          <button type="button" class="primary" :disabled="busy || checking || !on.size" :aria-busy="busy" @click="confirmOpen = true">Apply {{ on.size }} change{{ on.size === 1 ? "" : "s" }}</button>
         </div>
       </header>
       <p class="admin-panel-text muted">Nothing has been written yet. {{ changes.length }} change{{ changes.length === 1 ? "" : "s" }} ready{{ manual.length ? `, ${manual.length} to do by hand` : "" }}.</p>
+      <div v-if="aiAgents.length" class="ai">
+        <p class="muted">Optional: ask an agent to compare this plan with what is already on this computer and flag duplicates. It only reads; you decide what to switch off.</p>
+        <div class="ai-actions">
+          <button v-for="k in aiAgents" :key="k" type="button" class="chip" :disabled="checking || busy" :aria-busy="checking" @click="aiCheck(k)">Check with {{ AGENT_LABEL[k] }}</button>
+          <button v-if="hinted.length" type="button" class="primary" @click="switchOffHinted">Switch off {{ hinted.length }} suggested</button>
+        </div>
+        <p v-if="checking" class="muted" role="status">The agent is reading your config…</p>
+        <p v-else-if="checkNote" class="muted" role="status">{{ checkNote }}</p>
+      </div>
       <div v-for="o in ops" :key="o.id" class="op">
         <ToggleSwitch small :checked="on.has(o.id)" :disabled="o.manual" @change="flip(o.id, ($event.target as HTMLInputElement).checked)">{{ o.label }}</ToggleSwitch>
         <span v-if="o.manual" class="status-pill">Do by hand</span>
+        <p v-if="hints[o.id] !== undefined" class="hint"><span class="status-pill">AI: looks redundant</span> {{ hints[o.id] }}</p>
         <details v-if="hasDiff(o)">
           <summary>{{ o.manual ? "What to do" : "Show change" }}</summary>
           <pre>{{ o.diff }}</pre>
@@ -277,6 +345,10 @@ function flip(id: number, checked: boolean) {
 .path-row input { min-height: 44px; }
 .actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .op { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.ai { display: grid; gap: 8px; padding: 0 16px 16px; }
+.ai p { margin: 0; }
+.ai-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.hint { flex-basis: 100%; margin: 0; font-size: 0.9em; }
 .op details { flex-basis: 100%; }
 .op summary { cursor: pointer; color: var(--muted); font-size: 0.85em; }
 .op pre { margin: 6px 0 0; max-height: 240px; overflow: auto; padding: 8px; border-radius: var(--radius-md); background: var(--code-bg); font: 0.8em var(--mono); white-space: pre-wrap; scrollbar-gutter: stable; }

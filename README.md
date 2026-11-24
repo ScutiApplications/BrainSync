@@ -16,6 +16,9 @@ There is no `.env` and no config file. Every setting is kept in the database (`.
 - **Import:** from a pack file or from a device sharing on the LAN. Preview, then per-note action; conflicts open a per-conflict merge view. Old files are backed up outside the vault.
 - **Share:** turn sharing on, give the 8-character code to the other device. Read-only, LAN only. Off at every start.
 - **Agent setup:** installs hooks, skills, settings and instruction text for Claude Code and Codex from the vault's `_setup/` folder. Plan first, Apply second.
+- **Sync notes:** lists the git projects on this computer and has Claude Code or Codex update their notes in the vault with the `project-sync` skill. Start it from the Sync notes page or a vault's drawer. Agents only start from this computer.
+- **AI check in Agent setup:** at the Review step, an agent can read your existing Claude Code and Codex config and flag plan rows that duplicate it. It only advises; you switch rows off.
+- **Settings → Agents:** allow each agent, set its command, the default agent, the time limit, the projects folder and what happens to the vault after a sync (leave, commit, commit and push; push only when a remote exists).
 - **History:** activity log and the backups made before files were replaced.
 
 ## New device
