@@ -19,25 +19,34 @@ from src.packager import read_manifest, write_pack
 from src.peer import PeerClient, PeerError
 from src.routes_auth import bearer
 from src.scanner import scan_vault
+from src.security import is_this_machine
 
 _PACK_ID = re.compile(r"[0-9a-f]{32}")
 
 
-def _list_dirs(path: str) -> dict:
-    """One level of folders for the vault picker. Empty path lists the drives."""
-    if not path.strip():
-        drives = [f"{c}:\\" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if Path(f"{c}:\\").exists()]
-        return {"path": "", "parent": None, "dirs": drives, "is_vault": False}
-    p = Path(path)
-    if not p.is_absolute() or not p.is_dir():
-        raise HTTPException(400, "folder not found")
+_PICK_SCRIPT = r"""
+Add-Type -AssemblyName System.Windows.Forms
+$d = New-Object System.Windows.Forms.OpenFileDialog
+$d.Title = 'Choose the vault folder'
+$d.ValidateNames = $false
+$d.CheckFileExists = $false
+$d.CheckPathExists = $true
+$d.FileName = 'Select this folder'
+if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write((Split-Path -Parent $d.FileName)) }
+"""
+
+
+async def _pick_folder() -> str:
+    """Open the Windows folder dialog on this computer (modern file dialog) and return the chosen folder, or empty."""
+    proc = await asyncio.create_subprocess_exec(
+        "powershell", "-NoProfile", "-STA", "-Command", _PICK_SCRIPT,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
     try:
-        dirs = sorted((d.name for d in p.iterdir() if d.is_dir()), key=str.lower)
-    except OSError:
-        raise HTTPException(400, "cannot read this folder") from None
-    parent = str(p.parent) if p.parent != p else ""
-    return {"path": str(p), "parent": parent, "dirs": dirs,
-            "is_vault": (p / ".obsidian").is_dir() and (p / "AGENTS.md").is_file()}
+        out, _ = await asyncio.wait_for(proc.communicate(), 300)
+    except asyncio.TimeoutError:
+        proc.kill()
+        return ""
+    return out.decode("utf-8", "replace").strip()
 
 
 class VaultIn(BaseModel):
@@ -103,10 +112,12 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
         v = ctx.vaults.get(vid)
         return v, await asyncio.to_thread(scan_vault, Path(v["path"]), v["private_folders"])
 
-    # ---- folder picker (lists folders on the computer BrainSync runs on)
-    @r.get("/fs/dirs")
-    async def fs_dirs(path: str = ""):
-        return await asyncio.to_thread(_list_dirs, path)
+    # ---- folder picker: the dialog opens on the computer BrainSync runs on, so only that computer may ask
+    @r.post("/fs/pick")
+    async def fs_pick(request: Request):
+        if not is_this_machine(request.client.host if request.client else ""):
+            raise HTTPException(403, "the folder dialog only opens on the computer BrainSync runs on")
+        return {"path": await _pick_folder()}
 
     # ---- vaults
     @r.get("/vaults")

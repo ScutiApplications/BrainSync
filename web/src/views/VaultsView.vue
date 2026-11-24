@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { fsApi, vaultApi, type DirListing, type Vault } from "../api/brainsync";
+import { fsApi, vaultApi, type Vault } from "../api/brainsync";
 import ActionMessage from "../components/admin/ActionMessage.vue";
 import AdminSearch from "../components/admin/AdminSearch.vue";
 import ConfirmModal from "../components/admin/ConfirmModal.vue";
@@ -85,29 +85,26 @@ const remove = () => run(async () => {
   selectedId.value = null;
 });
 
-const picker = ref<DirListing | null>(null);
-const pickerError = ref("");
+const picking = ref(false);
 
-/** Show the folders of this computer one level at a time, starting at the typed folder (or the drives). */
-async function browse(to: string) {
-  pickerError.value = "";
+/** Open the Windows folder dialog on this computer and put the chosen folder in the field. */
+async function browse() {
+  picking.value = true;
+  createError.value = "";
   try {
-    picker.value = await fsApi.dirs(to);
+    const { path: chosen } = await fsApi.pick();
+    if (chosen) {
+      path.value = chosen;
+      if (!name.value.trim()) name.value = chosen.split(/[\\/]/).filter(Boolean).pop() ?? "";
+    }
   } catch (err) {
-    pickerError.value = errorMessage(err);
+    createError.value = errorMessage(err);
+  } finally {
+    picking.value = false;
   }
-}
-const child = (d: string) => (picker.value?.path ? picker.value.path.replace(/[\/]+$/, "") + "\\" + d : d);
-function useFolder() {
-  if (!picker.value) return;
-  path.value = picker.value.path;
-  if (!name.value.trim()) name.value = picker.value.path.split(/[\/]/).filter(Boolean).pop() ?? "";
-  picker.value = null;
 }
 
 function openCreate() {
-  picker.value = null;
-  pickerError.value = "";
   name.value = path.value = createError.value = "";
   createFolder.value = false;
   createOpen.value = true;
@@ -203,24 +200,10 @@ async function create() {
         <label for="vault-path">Folder</label>
         <div class="path-row">
           <input id="vault-path" v-model="path" type="text" required spellcheck="false" placeholder="D:\Notes\Brain" :disabled="busy" />
-          <button type="button" class="chip" :disabled="busy" @click="browse(path.trim())">Browse</button>
+          <button type="button" class="admin-icon" aria-label="Browse for a folder" title="Browse for a folder" :disabled="busy || picking" :aria-busy="picking" @click="browse">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+          </button>
         </div>
-        <section v-if="picker || pickerError" class="picker" aria-label="Choose a folder">
-          <ActionMessage v-if="pickerError" kind="error" :text="pickerError" />
-          <template v-if="picker">
-            <p class="mono picker-path">{{ picker.path || "This computer" }}</p>
-            <p v-if="picker.is_vault" class="muted">This folder is already a Brain vault.</p>
-            <ul class="picker-list">
-              <li v-if="picker.parent !== null"><button type="button" class="chip" @click="browse(picker.parent)">.. Up</button></li>
-              <li v-for="d in picker.dirs" :key="d"><button type="button" class="admin-row-button" @click="browse(child(d))">{{ d }}</button></li>
-              <li v-if="!picker.dirs.length" class="muted">No folders inside.</li>
-            </ul>
-            <div class="picker-actions">
-              <button type="button" class="chip" @click="picker = null">Close</button>
-              <button type="button" class="primary" :disabled="!picker.path" @click="useFolder">Use this folder</button>
-            </div>
-          </template>
-        </section>
         <ToggleSwitch v-model="createFolder" :disabled="busy">Create the folder (new or empty only)</ToggleSwitch>
         <p class="muted">Without this the folder must already be a Brain vault: it needs <code>.obsidian</code> and <code>AGENTS.md</code>.</p>
         <ActionMessage v-if="createError" kind="error" :text="createError" />
@@ -238,10 +221,6 @@ async function create() {
 <style scoped>
 .mono { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .path-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
-.picker { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); }
-.picker-path { margin: 0; }
-.picker-list { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow: auto; display: grid; gap: 2px; }
-.picker-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .folder-list { margin: 0; padding-inline-start: 18px; }
 .status-pill { padding: 1px 8px; border: 1px solid var(--border); border-radius: var(--radius-full); font-size: 0.8em; }
 .status-pill.success { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); color: var(--success); }

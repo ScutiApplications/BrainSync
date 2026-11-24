@@ -33,10 +33,8 @@ export const authApi = {
   changePassword: (current: string, next: string) => post<{ token: string }>("api/auth/password", { current, new: next }),
 };
 
-export interface DirListing { path: string; parent: string | null; dirs: string[]; is_vault: boolean }
-
 export const fsApi = {
-  dirs: (path: string) => get<DirListing>(`api/fs/dirs?path=${encodeURIComponent(path)}`),
+  pick: () => post<{ path: string }>("api/fs/pick"),
 };
 
 export const vaultApi = {
