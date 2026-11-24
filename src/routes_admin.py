@@ -23,6 +23,23 @@ from src.scanner import scan_vault
 _PACK_ID = re.compile(r"[0-9a-f]{32}")
 
 
+def _list_dirs(path: str) -> dict:
+    """One level of folders for the vault picker. Empty path lists the drives."""
+    if not path.strip():
+        drives = [f"{c}:\\" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if Path(f"{c}:\\").exists()]
+        return {"path": "", "parent": None, "dirs": drives, "is_vault": False}
+    p = Path(path)
+    if not p.is_absolute() or not p.is_dir():
+        raise HTTPException(400, "folder not found")
+    try:
+        dirs = sorted((d.name for d in p.iterdir() if d.is_dir()), key=str.lower)
+    except OSError:
+        raise HTTPException(400, "cannot read this folder") from None
+    parent = str(p.parent) if p.parent != p else ""
+    return {"path": str(p), "parent": parent, "dirs": dirs,
+            "is_vault": (p / ".obsidian").is_dir() and (p / "AGENTS.md").is_file()}
+
+
 class VaultIn(BaseModel):
     name: str
     path: str
@@ -85,6 +102,11 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
     async def scan(vid: str):
         v = ctx.vaults.get(vid)
         return v, await asyncio.to_thread(scan_vault, Path(v["path"]), v["private_folders"])
+
+    # ---- folder picker (lists folders on the computer BrainSync runs on)
+    @r.get("/fs/dirs")
+    async def fs_dirs(path: str = ""):
+        return await asyncio.to_thread(_list_dirs, path)
 
     # ---- vaults
     @r.get("/vaults")
