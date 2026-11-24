@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.0
+- Agent setup page redesigned as three steps (choose, review changes, done) with a plain list of what it installs; the projects folder starts from the vault's parent folder and has a folder picker.
 - Logins persist across restarts (session hashes in the db, token kept in localStorage). Changing the password or logging out still ends them.
 - First-run password prompt also works through this computer's own LAN address, not only localhost. Password field focus ring no longer shows a double border (also fixed in the Citadel admin apps).
 - No `.env`: settings, vaults, sync bases, audit log, device id and the admin password hash live in one SQLite db. Settings apply at once; port and listen address at the next start.
