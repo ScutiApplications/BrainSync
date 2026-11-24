@@ -45,6 +45,8 @@ gap: 14px;
 .admin-panel input[type="email"],
 .admin-panel input[type="number"],
 .admin-panel input[type="password"],
+.admin-panel input[type="search"],
+.admin-panel input[type="date"],
 .admin-panel select {
   padding: 6px 10px;
   border: 1px solid var(--border);
