@@ -35,7 +35,7 @@ async function submit() {
 <template>
   <AuthCard :title="firstRun ? 'Set the admin password' : 'Log in'"
     :subtitle="firstRun ? 'First run. Choose the password that protects this BrainSync.' : 'BrainSync administration.'">
-    <ActionMessage v-if="blocked" kind="warning" text="Open BrainSync on this computer (http://localhost) to set the first password. Other devices cannot." />
+    <ActionMessage v-if="blocked" kind="warning" text="No password is set yet. Open BrainSync on the computer it runs on (http://localhost:26508) to choose one. Other devices cannot." />
     <form v-else @submit.prevent="submit">
       <PasswordInput v-model="password" label="Password" :autocomplete="firstRun ? 'new-password' : 'current-password'" required autofocus />
       <PasswordInput v-if="firstRun" v-model="again" label="Repeat password" autocomplete="new-password" required />

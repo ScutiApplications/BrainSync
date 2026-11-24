@@ -68,3 +68,15 @@ def is_lan_ip(host: str) -> bool:
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
     return any(ip in n for n in _LAN)
+
+
+def is_this_machine(host: str) -> bool:
+    """True for loopback and for any address this computer itself owns (e.g. its own LAN IP)."""
+    if is_loopback(host):
+        return True
+    import socket
+    try:
+        own = {i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None)}
+    except OSError:
+        return False
+    return host in own

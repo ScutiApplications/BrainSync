@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from src.auth import AuthError
 from src.ctx import AppContext
-from src.security import is_loopback
+from src.security import is_this_machine
 
 
 def bearer(authorization: str) -> str:
@@ -39,13 +39,13 @@ def build_auth_router(ctx: AppContext) -> APIRouter:
     async def status(request: Request, authorization: str = Header("")):
         configured = ctx.auth.configured()
         return {"configured": configured,
-                "can_setup": not configured and is_loopback(client_ip(request)),
+                "can_setup": not configured and is_this_machine(client_ip(request)),
                 "authed": ctx.auth.check(bearer(authorization))}
 
     @r.post("/setup")
     async def setup(body: PasswordIn, request: Request):
         # First run: only the machine itself may claim the service, never another device on the LAN.
-        if not is_loopback(client_ip(request)):
+        if not is_this_machine(client_ip(request)):
             raise HTTPException(403, "open BrainSync on this computer (localhost) to set the first password")
         token = guarded(lambda: ctx.auth.setup(body.password))
         ctx.state.audit("password-set")

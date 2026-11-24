@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.0
+- First-run password prompt also works through this computer's own LAN address, not only localhost. Password field focus ring no longer shows a double border (also fixed in the Citadel admin apps).
 - No `.env`: settings, vaults, sync bases, audit log, device id and the admin password hash live in one SQLite db. Settings apply at once; port and listen address at the next start.
 - Admin password is set on first run from localhost, then login with a session token.
 - UI rebuilt as a Vue admin app in the Citadel admin design.
