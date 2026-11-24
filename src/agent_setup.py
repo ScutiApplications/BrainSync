@@ -104,7 +104,9 @@ def insert_writable_roots(text: str, roots: list[str]) -> str | None:
 
 
 def build_plan(vault: Path, *, home: Path, projects_root: str, codex: bool, others: list[Path],
-               py: str = "py", codex_home: Path | None = None) -> list[Op]:
+               py: str = "py", codex_home: Path | None = None, claude_on: bool = True) -> list[Op]:
+    if not (claude_on or codex):
+        raise SetupError("choose Claude Code, Codex or both")
     setup = vault / "_setup"
     if not setup.is_dir():
         raise SetupError("vault has no _setup folder")
@@ -121,10 +123,11 @@ def build_plan(vault: Path, *, home: Path, projects_root: str, codex: bool, othe
         old = target.read_text("utf-8") if target.is_file() else ""
         put(label, target, replace_block(old, _sub(template.read_text("utf-8"), subs)).encode("utf-8"))
 
-    if (setup / "hooks").is_dir():
+    if claude_on and (setup / "hooks").is_dir():
         for f in sorted((setup / "hooks").glob("*.py")):
             put(f"hook {f.name}", hooks / f.name, f.read_bytes())
-    put("vault path", hooks / "vault_path.txt", (vault.as_posix() + "\n").encode())
+    if claude_on:
+        put("vault path", hooks / "vault_path.txt", (vault.as_posix() + "\n").encode())
     skills = sorted(p for p in (setup / "skills").iterdir() if p.is_dir()) if (setup / "skills").is_dir() else []
     for d in skills:
         for f in sorted(d.rglob("*")):
@@ -136,13 +139,16 @@ def build_plan(vault: Path, *, home: Path, projects_root: str, codex: bool, othe
         existing = json.loads(sp.read_text("utf-8")) if sp.is_file() else {}
     except ValueError:
         existing = None
-    if not isinstance(existing, dict):
+    if not claude_on:
+        pass
+    elif not isinstance(existing, dict):
         ops.append(Op("settings.json", sp, manual="settings.json is not valid JSON. Fix it by hand, then plan again."))
     else:
         snippet = json.loads((setup / "settings.snippet.json").read_text("utf-8"))
         merged = merge_settings(existing, snippet, subs, [o.as_posix() for o in others])
         put("settings.json", sp, (json.dumps(merged, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
-    block("CLAUDE.md block", claude / "CLAUDE.md", setup / "user-CLAUDE.md.template")
+    if claude_on:
+        block("CLAUDE.md block", claude / "CLAUDE.md", setup / "user-CLAUDE.md.template")
     if codex:
         ch = codex_home or Path(os.environ.get("CODEX_HOME") or home / ".codex")
         block("Codex AGENTS.md block", ch / "AGENTS.md", setup / "user-AGENTS.md.template")

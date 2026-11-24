@@ -139,6 +139,8 @@ button[aria-busy="true"]::before {
 }
 
 /* Admin panels and record actions (copy of legion_admin/src/style.css). */
+/* Panels and the notes between them never touch. */
+.page-column > * + * { margin-top: 20px; }
 .admin-panel-card { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: clip; }
 .admin-panel-head, .admin-panel-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .admin-panel-head { justify-content: space-between; min-height: 52px; padding: 8px 14px; border-bottom: 1px solid var(--border); }

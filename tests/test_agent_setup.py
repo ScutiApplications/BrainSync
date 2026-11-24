@@ -56,3 +56,16 @@ def test_plan_apply_twice(tmp_path):
     assert (home / ".claude/skills/s1/SKILL.md").read_text() == "skill"
     assert (home / ".claude/hooks/vault_path.txt").read_text().strip() == v.as_posix()
     assert "vault " + v.as_posix() in (home / ".claude/CLAUDE.md").read_text()
+
+
+def test_codex_only_skips_claude_files(tmp_path):
+    import pytest
+    v = make_vault(tmp_path / "v", {
+        "_setup/hooks/h.py": "1", "_setup/skills/s1/SKILL.md": "s", "_setup/settings.snippet.json": json.dumps(SNIP),
+        "_setup/user-CLAUDE.md.template": "c", "_setup/user-AGENTS.md.template": "a"})
+    ops = build_plan(v, home=tmp_path / "h", projects_root="D:/p", codex=True, others=[], claude_on=False)
+    labels = [o.label for o in ops]
+    assert not any(x.startswith(("hook", "settings", "CLAUDE", "vault path")) for x in labels)
+    assert "Codex AGENTS.md block" in labels and "skill s1/SKILL.md" in labels
+    with pytest.raises(Exception):
+        build_plan(v, home=tmp_path / "h", projects_root="D:/p", codex=False, others=[], claude_on=False)

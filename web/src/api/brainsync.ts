@@ -69,8 +69,9 @@ export const peerApi = {
   close: (cid: string) => apiRequest<{ ok: boolean }>("DELETE", `api/peer/${cid}`),
 };
 
-export interface SetupBody { vault_id: string; projects_root: string; codex: boolean; selected: number[] }
+export interface SetupBody { vault_id: string; projects_root: string; claude: boolean; codex: boolean; selected: number[] }
 export const setupApi = {
+  detect: () => get<{ claude: boolean; codex: boolean }>("api/setup/detect"),
   plan: async (b: SetupBody) => (await post<{ ops: SetupOp[] }>("api/setup/plan", b)).ops,
   apply: async (b: SetupBody) => (await post<{ results: SetupResult[] }>("api/setup/apply", b)).results,
   verify: async (b: SetupBody) => (await post<{ rows: VerifyRow[] }>("api/setup/verify", b)).rows,

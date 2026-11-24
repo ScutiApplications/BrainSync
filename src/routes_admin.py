@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -90,6 +92,7 @@ class SettingIn(BaseModel):
 class SetupIn(BaseModel):
     vault_id: str
     projects_root: str = ""
+    claude: bool = True
     codex: bool = False
     selected: list[int] = []
 
@@ -284,7 +287,15 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
             raise agent_setup.SetupError("projects root is required")
         others = [Path(x["path"]) for x in ctx.vaults.list() if x["id"] != b.vault_id]
         return agent_setup.build_plan(Path(v["path"]), home=ctx.paths.home, projects_root=b.projects_root,
-                                      codex=b.codex, others=others)
+                                      codex=b.codex, others=others, claude_on=b.claude)
+
+    @r.get("/setup/detect")
+    async def setup_detect():
+        """Which agents look installed on this computer (config folder or command found)."""
+        home = ctx.paths.home
+        codex_home = Path(os.environ.get("CODEX_HOME") or home / ".codex")
+        return {"claude": (home / ".claude").is_dir() or bool(shutil.which("claude")),
+                "codex": codex_home.is_dir() or bool(shutil.which("codex"))}
 
     @r.post("/setup/plan")
     async def setup_plan(b: SetupIn):

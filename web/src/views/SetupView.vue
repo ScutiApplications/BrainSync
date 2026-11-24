@@ -14,7 +14,10 @@ import "../components/admin/admin.css";
 const vaults = ref<Vault[]>([]);
 const vaultId = ref("");
 const projectsRoot = ref("");
-const codex = ref(false);
+const claude = ref(true);
+const codex = ref(true);
+const found = ref({ claude: true, codex: true });
+const intro = ref(true);
 const ops = ref<SetupOp[]>([]);
 const on = ref(new Set<number>());
 const results = ref<SetupResult[]>([]);
@@ -25,25 +28,28 @@ const error = ref("");
 const confirmOpen = ref(false);
 
 const vault = computed(() => vaults.value.find((v) => v.id === vaultId.value) ?? null);
-const body = computed<SetupBody>(() => ({ vault_id: vaultId.value, projects_root: projectsRoot.value, codex: codex.value, selected: [...on.value] }));
-/** 1 = choose, 2 = review, 3 = done. */
-const step = computed(() => (results.value.length ? 3 : ops.value.length ? 2 : 1));
+const body = computed<SetupBody>(() => ({ vault_id: vaultId.value, projects_root: projectsRoot.value, claude: claude.value, codex: codex.value, selected: [...on.value] }));
+/** 0 = read first, 1 = choose, 2 = review, 3 = done. */
+const step = computed(() => (results.value.length ? 3 : ops.value.length ? 2 : intro.value ? 0 : 1));
 const changes = computed(() => ops.value.filter((o) => !o.manual));
 const manual = computed(() => ops.value.filter((o) => o.manual));
 const hasDiff = (o: SetupOp) => o.diff.trim() !== "";
 
 const WILL_DO = [
-  ["Hooks", "Copied to ~/.claude/hooks so Claude Code keeps the vault tidy and commits it."],
-  ["Skills", "Copied to ~/.claude/skills (process inbox, weekly review, project sync...)."],
-  ["Settings", "Merged into ~/.claude/settings.json. Your own entries stay; a backup is kept."],
-  ["Instructions", "A marked block is added to ~/.claude/CLAUDE.md so the agent knows the vault."],
-  ["Codex (optional)", "The same for Codex: instructions, skill links and the writable folder."],
+  ["Skills", "Copied to ~/.claude/skills (process inbox, weekly review, project sync...). Both agents use them."],
+  ["Claude Code", "Hooks that keep the vault tidy and committed, a merge into ~/.claude/settings.json (your own entries stay, a backup is kept) and a marked block in ~/.claude/CLAUDE.md."],
+  ["Codex", "A marked block in ~/.codex/AGENTS.md, links to the skills and the vault added as a writable folder."],
+  ["Git", "If the vault is not a git repo yet, it is initialised. No remote is added."],
 ];
 
 onMounted(async () => {
   try {
     vaults.value = await vaultApi.list();
     vaultId.value = vaults.value.find((v) => v.active)?.id ?? vaults.value[0]?.id ?? "";
+    found.value = await setupApi.detect();
+    // Tick what is installed here; if neither is found, tick both.
+    claude.value = found.value.claude || !found.value.codex;
+    codex.value = found.value.codex || !found.value.claude;
   } catch (err) {
     error.value = errorMessage(err);
   }
@@ -94,6 +100,7 @@ const verify = () => guard(async () => {
 function back() {
   ops.value = [];
   results.value = [];
+  intro.value = false;
 }
 
 async function browse() {
@@ -116,7 +123,14 @@ function flip(id: number, checked: boolean) {
 
 <template>
   <PageLayout class="admin-panel" title="Agent setup" wide>
-    <section class="admin-panel-card" aria-labelledby="setup-intro">
+    <ol class="steps" aria-label="Progress">
+      <li :class="{ now: step === 0, done: step > 0 }"><span>0</span> Read first</li>
+      <li :class="{ now: step === 1, done: step > 1 }"><span>1</span> Choose</li>
+      <li :class="{ now: step === 2, done: step > 2 }"><span>2</span> Review changes</li>
+      <li :class="{ now: step === 3 }"><span>3</span> Done</li>
+    </ol>
+
+    <section v-if="step === 0" class="admin-panel-card" aria-labelledby="setup-intro">
       <header class="admin-panel-head">
         <h2 id="setup-intro">What this does</h2>
         <div class="admin-panel-tools">
@@ -127,18 +141,13 @@ function flip(id: number, checked: boolean) {
         </div>
       </header>
       <div class="intro">
-        <p>Makes <b>Claude Code</b> (and optionally <b>Codex</b>) on this computer use your Brain vault. You review every change before anything is written.</p>
+        <p>Makes <b>Claude Code</b>, <b>Codex</b> or both on this computer use your Brain vault. You review every change before anything is written.</p>
         <dl class="will">
           <template v-for="[name, text] in WILL_DO" :key="name"><dt>{{ name }}</dt><dd>{{ text }}</dd></template>
         </dl>
+        <div class="actions"><button type="button" class="primary" @click="intro = false">Continue</button></div>
       </div>
     </section>
-
-    <ol class="steps" aria-label="Progress">
-      <li :class="{ now: step === 1, done: step > 1 }"><span>1</span> Choose</li>
-      <li :class="{ now: step === 2, done: step > 2 }"><span>2</span> Review changes</li>
-      <li :class="{ now: step === 3 }"><span>3</span> Done</li>
-    </ol>
 
     <section v-if="step === 1" class="admin-panel-card" aria-labelledby="setup-form">
       <header class="admin-panel-head">
@@ -164,11 +173,20 @@ function flip(id: number, checked: boolean) {
           </div>
         </div>
         <div class="field wide">
-          <ToggleSwitch v-model="codex">Also set up Codex</ToggleSwitch>
-          <p class="muted">Off: Claude Code only. On: also Codex instructions, skill links and the writable folder. Skill links need Windows Developer Mode.</p>
+          <FieldLabel title="Set up for" bare><p>Pick the agents to configure. Both are ticked when both are installed here. Codex skill links need Windows Developer Mode.</p></FieldLabel>
+          <div class="agents">
+            <div class="agent">
+              <ToggleSwitch v-model="claude">Claude Code</ToggleSwitch>
+              <span class="status-pill" :class="{ ok: found.claude }">{{ found.claude ? "Found on this computer" : "Not found" }}</span>
+            </div>
+            <div class="agent">
+              <ToggleSwitch v-model="codex">Codex</ToggleSwitch>
+              <span class="status-pill" :class="{ ok: found.codex }">{{ found.codex ? "Found on this computer" : "Not found" }}</span>
+            </div>
+          </div>
         </div>
         <div class="actions">
-          <button type="button" class="primary" :disabled="busy || !vaultId || !projectsRoot.trim()" :aria-busy="busy" @click="plan">Review changes</button>
+          <button type="button" class="primary" :disabled="busy || !vaultId || !projectsRoot.trim() || !(claude || codex)" :aria-busy="busy" @click="plan">Review changes</button>
         </div>
       </div>
     </section>
@@ -230,7 +248,7 @@ function flip(id: number, checked: boolean) {
 </template>
 
 <style scoped>
-.intro { display: grid; gap: 12px; padding: 16px; }
+.intro { display: grid; gap: 16px; padding: 20px 16px; }
 .intro p { margin: 0; }
 .will { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
 .will dt { font-weight: 600; }
@@ -241,6 +259,9 @@ function flip(id: number, checked: boolean) {
 .steps li.now { border-color: var(--accent); color: var(--text); }
 .steps li.now span { background: var(--accent); color: var(--accent-contrast); }
 .steps li.done span { background: var(--success); color: var(--accent-contrast); }
+.agents { display: flex; flex-wrap: wrap; gap: 12px 32px; }
+.agent { display: flex; align-items: center; gap: 10px; }
+.status-pill.ok { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); color: var(--success); }
 .group.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 20px; padding: 20px 16px; }
 .field { display: grid; gap: 4px; min-width: 0; align-content: start; }
 .field.wide { grid-column: 1 / -1; }
