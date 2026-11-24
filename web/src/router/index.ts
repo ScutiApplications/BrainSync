@@ -11,6 +11,7 @@ export const router = createRouter({
     { path: "/export", component: () => import("../views/ExportView.vue") },
     { path: "/import", component: () => import("../views/ImportView.vue") },
     { path: "/share", component: () => import("../views/ShareView.vue") },
+    { path: "/sync", component: () => import("../views/SyncView.vue") },
     { path: "/setup", component: () => import("../views/SetupView.vue") },
     { path: "/history", component: () => import("../views/HistoryView.vue") },
     { path: "/settings", component: () => import("../views/SettingsView.vue") },

@@ -77,6 +77,19 @@ export const setupApi = {
   verify: async (b: SetupBody) => (await post<{ rows: VerifyRow[] }>("api/setup/verify", b)).rows,
 };
 
+export interface AgentState { found: boolean; runnable: boolean; enabled: boolean }
+export interface AgentStatus { claude: AgentState; codex: AgentState; default: string }
+export interface SyncProject { name: string; path: string; rel: string; note: boolean; last_synced: string }
+export interface JobView { id: string; kind: string; agent: string; label: string; state: "running" | "done" | "failed" | "cancelled" | "timeout"; output: string; exit_code: number | null }
+
+export const agentApi = {
+  status: () => get<AgentStatus>("api/agents/status"),
+  projects: (vaultId: string) => get<{ root: string; projects: SyncProject[] }>(`api/sync/projects?vault_id=${encodeURIComponent(vaultId)}`),
+  run: (vaultId: string, project: string, agent: string) => post<JobView>("api/sync/run", { vault_id: vaultId, project, agent }),
+  job: (id: string) => get<JobView>(`api/jobs/${id}`),
+  cancel: (id: string) => post<{ ok: boolean }>(`api/jobs/${id}/cancel`),
+};
+
 export const settingsApi = {
   list: async () => (await get<{ options: SettingOption[] }>("api/settings")).options,
   set: async (key: string, value: string | number | boolean) => (await apiRequest<{ options: SettingOption[] }>("PUT", `api/settings/${key}`, { value })).options,

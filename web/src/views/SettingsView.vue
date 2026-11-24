@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { authApi, settingsApi, type SettingOption } from "../api/brainsync";
 import ActionMessage from "../components/admin/ActionMessage.vue";
 import FieldLabel from "../components/admin/FieldLabel.vue";
+import ToggleSwitch from "../components/ToggleSwitch.vue";
 import SettingsPanel from "../components/admin/SettingsPanel.vue";
 import PasswordInput from "../components/PasswordInput.vue";
 import { adoptToken } from "../session";
@@ -39,14 +40,18 @@ onMounted(async () => {
   }
 });
 
+const groups = computed(() => [...new Set(options.value.map((o) => o.group))]);
+const inGroup = (g: string) => options.value.filter((o) => o.group === g);
 const changed = computed(() => options.value.filter((o) => draft.value[o.key] !== String(o.value)));
 const dirty = computed(() => changed.value.length > 0);
 const restartNeeded = computed(() => changed.value.some((o) => o.restart));
 const shown = (o: SettingOption) => panel.value?.matches(o.label, o.help) ?? true;
 
-function parsed(o: SettingOption): string | number {
+function parsed(o: SettingOption): string | number | boolean {
+  if (o.kind === "bool") return draft.value[o.key] === "true";
   return o.kind === "int" ? Number(draft.value[o.key]) : draft.value[o.key]!;
 }
+const CHOICE_LABELS: Record<string, string> = { claude: "Claude Code", codex: "Codex", nothing: "Leave changes uncommitted", commit: "Commit", commit_push: "Commit and push" };
 
 async function save() {
   if (!dirty.value || saving.value) return;
@@ -104,16 +109,18 @@ async function changePassword() {
     <p v-if="loading" class="note muted" role="status">Loading settings…</p>
     <ActionMessage v-if="error" kind="error" :text="error" class="note" />
     <ActionMessage v-else-if="notice" kind="ok" :text="notice" class="note" />
-    <div v-if="!loading" class="group">
-      <h3>Behaviour</h3>
+    <div v-for="g in groups" v-show="!loading" :key="g" class="group">
+      <h3>{{ g }}</h3>
       <p class="help">Saved in the database. Press Save in the header to apply.</p>
-      <div v-for="o in options" v-show="shown(o)" :key="o.key" class="field">
+      <div v-for="o in inGroup(g)" v-show="shown(o)" :key="o.key" class="field">
         <FieldLabel :title="o.label" :for="`opt-${o.key}`">
           <p>{{ o.help }}</p>
           <p v-if="o.min !== null">Allowed: {{ o.min }} to {{ o.max }}. Default: {{ o.default === "" ? "computer name" : o.default }}.</p>
           <p v-else>Default: {{ o.default === "" ? "computer name" : o.default }}.</p>
         </FieldLabel>
-        <input :id="`opt-${o.key}`" v-model="draft[o.key]" :type="o.kind === 'int' ? 'number' : 'text'" :min="o.min ?? undefined" :max="o.max ?? undefined" spellcheck="false" :disabled="saving" />
+        <ToggleSwitch v-if="o.kind === 'bool'" :id="`opt-${o.key}`" :checked="draft[o.key] === 'true'" :disabled="saving" @change="draft[o.key] = String(($event.target as HTMLInputElement).checked)">{{ draft[o.key] === "true" ? "On" : "Off" }}</ToggleSwitch>
+        <select v-else-if="o.kind === 'choice'" :id="`opt-${o.key}`" v-model="draft[o.key]" :disabled="saving"><option v-for="c in o.choices" :key="c" :value="c">{{ CHOICE_LABELS[c] ?? c }}</option></select>
+        <input v-else :id="`opt-${o.key}`" v-model="draft[o.key]" :type="o.kind === 'int' ? 'number' : 'text'" :min="o.min ?? undefined" :max="o.max ?? undefined" spellcheck="false" :disabled="saving" />
         <span v-if="o.restart" class="muted small">Applies at the next start.</span>
         <button v-if="o.changed" type="button" class="link-btn" :disabled="saving" @click="reset(o)">Reset to default</button>
       </div>
@@ -141,7 +148,7 @@ async function changePassword() {
 .group + .group { border-top: 1px solid var(--border); }
 .help { margin: 0; font-size: 0.85em; color: var(--muted); }
 .field { display: grid; gap: 4px; min-width: 0; align-content: start; }
-.field > input { min-width: 0; min-height: 44px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--text); }
-.field > input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field > :is(input, select) { min-width: 0; min-height: 44px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--text); }
+.field > :is(input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .actions { display: flex; justify-content: flex-end; }
 </style>

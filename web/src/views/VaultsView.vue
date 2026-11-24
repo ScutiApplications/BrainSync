@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { fsApi, vaultApi, type Vault } from "../api/brainsync";
 import ActionMessage from "../components/admin/ActionMessage.vue";
 import AdminSearch from "../components/admin/AdminSearch.vue";
@@ -12,6 +13,7 @@ import { errorMessage } from "../utils/errors";
 import "../components/admin/admin.css";
 
 /** The vaults BrainSync knows. Registering a vault never changes it; "Create" only makes a missing or empty folder. */
+const router = useRouter();
 const vaults = ref<Vault[]>([]);
 const loading = ref(true);
 const listError = ref("");
@@ -179,6 +181,7 @@ async function create() {
           <ul v-else class="folder-list"><li v-for="f in selected.private_folders" :key="f" class="mono">{{ f }}</li></ul>
           <ToggleSwitch v-if="!selected.active" :checked="false" :disabled="busy" @change="makeActive">Make this the active vault</ToggleSwitch>
         </template>
+        <button v-if="!editing" type="button" class="chip" @click="router.push({ path: '/sync', query: { vault: selected.id } })">Sync project notes</button>
         <ActionMessage v-if="actionError" kind="error" :text="actionError" />
         <section class="danger-zone">
           <h4>Danger zone</h4>
