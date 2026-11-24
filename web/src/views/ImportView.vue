@@ -23,6 +23,14 @@ const STATE_TEXT: Record<string, string> = {
 const vaults = ref<Vault[]>([]);
 const targetId = ref("");
 const file = ref<File | null>(null);
+const dragging = ref(false);
+function pickFile(f: File | null | undefined) {
+  file.value = f ?? null;
+}
+function dropFile(e: DragEvent) {
+  dragging.value = false;
+  pickFile(e.dataTransfer?.files[0]);
+}
 const preview = ref<Preview | null>(null);
 const actions = reactive<Record<string, string>>({});
 const choices = reactive<Record<string, Record<string, string>>>({});
@@ -145,7 +153,11 @@ const conflicts = (r: PreviewRow) => (r.hunks ?? []).filter((h) => h.kind === "c
         </div>
         <div class="field">
           <FieldLabel title="Pack file" for="i-file"><p>A <code>.brainpack</code> file made by Export on another device.</p></FieldLabel>
-          <input id="i-file" type="file" accept=".brainpack" @change="file = ($event.target as HTMLInputElement).files?.[0] ?? null" />
+          <label :class="['drop', { over: dragging }]" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="dropFile">
+            <input id="i-file" type="file" accept=".brainpack" class="file-input" @change="pickFile(($event.target as HTMLInputElement).files?.[0])" />
+            <span v-if="!file" class="muted">Drop a .brainpack here or choose one</span>
+            <span v-else class="mono">{{ file.name }}</span>
+          </label>
         </div>
         <div class="actions"><button type="button" class="primary" :disabled="busy || !targetId" :aria-busy="busy" @click="upload">Preview pack</button></div>
       </div>
@@ -239,6 +251,10 @@ const conflicts = (r: PreviewRow) => (r.hunks ?? []).filter((h) => h.kind === "c
 .group.fields + .group.fields { border-top: 1px solid var(--border); }
 .field { display: grid; gap: 4px; min-width: 0; }
 .field > :is(input, select) { min-height: 44px; width: 100%; }
+.drop { display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: var(--radius-md); font-size: 0.9em; cursor: pointer; position: relative; }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.drop:focus-within { border-style: solid; border-color: var(--accent); }
+.file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .wide-row { grid-column: 1 / -1; margin: 0; }
 h3.wide-row { padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 1em; }
