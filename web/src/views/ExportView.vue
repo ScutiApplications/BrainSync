@@ -89,7 +89,7 @@ async function preview() {
   loading.value = true;
   error.value = done.value = "";
   try {
-    const f = { paths: filter.paths.map((p) => (p.includes("*") || p.includes(".") ? p : `${p}/*`)), types: filter.types, statuses: filter.statuses, tags: filter.tags,
+    const f = { paths: filter.paths.map((p) => (p.includes("*") || p.endsWith(".md") ? p : `${p}/*`)), types: filter.types, statuses: filter.statuses, tags: filter.tags,
       created_from: filter.created_from.trim(), created_to: filter.created_to.trim(),
       modified_from: filter.modified_from.trim(), modified_to: filter.modified_to.trim(), changed_since_peer: filter.changed_since_peer.trim() };
     const r = await vaultApi.select(vaultId.value, { filter: f });
