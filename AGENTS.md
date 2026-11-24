@@ -13,7 +13,7 @@ This file is the one instruction file for every coding agent; `CLAUDE.md` only i
 ## Rules
 - Native Windows service, no Docker. It writes to the vault and to `~/.claude` and `~/.codex`.
 - **No `.env`, no config file.** Everything that changes at run time is in one SQLite file, `.data/brainsync.db` (`src/db.py`): settings, vaults, sync bases, audit log, device id, password hash. Blobs and backups stay as files in `.data/`. A setting is added in `src/settings.py` `OPTIONS` and read with `ctx.settings.get(key)` on every use, never cached in a module, so a saved change applies at once. Only `restart=True` options (`bind`, `port`) wait for the next start.
-- **First run:** no password exists. Only a request from localhost may set it (`POST /api/auth/setup`); other devices are refused. After that, `POST /api/auth/login` returns a session token (header `Authorization: Bearer`, 12 h, in memory). `/health` is open.
+- **First run:** no password exists. Only a request from localhost may set it (`POST /api/auth/setup`); other devices are refused. After that, `POST /api/auth/login` returns a session token (header `Authorization: Bearer`, 12 h; only its hash is stored in the db `sessions` table, so logins survive a restart; the browser keeps it in localStorage). `/health` is open.
 - Share API (`/share/v1`): LAN IPs only, pairing code, bearer token, read-only, only while sharing is on.
 - ServiceHub: bind `0.0.0.0` (never default to loopback), UI at `/` with relative URLs only, hash router.
 - Private notes (`private: true` frontmatter or a private folder) are shared only by exact path. A filter never selects one. Hard blocks (`.env*`, `secrets/`, keys, `.git/`, `.trash/`) never enter a pack or share. Unreadable frontmatter counts as private.

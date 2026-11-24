@@ -16,13 +16,13 @@ const TOKEN_KEY = "brainsync.token";
 let unauthorizedHandler: (() => void) | null = null;
 
 export function getToken(): string {
-  try { return sessionStorage.getItem(TOKEN_KEY) ?? ""; } catch { return ""; }
+  try { return localStorage.getItem(TOKEN_KEY) ?? ""; } catch { return ""; }
 }
 
 export function setToken(token: string): void {
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
   } catch { /* storage blocked: the login lasts until reload */ }
 }
 

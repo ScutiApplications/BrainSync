@@ -1,4 +1,4 @@
-"""Admin password (scrypt hash in the db) and in-memory login sessions."""
+"""Admin password (scrypt hash in the db) and login sessions (stored as hashes in the db, so they survive a restart)."""
 from __future__ import annotations
 
 import hashlib
@@ -26,12 +26,15 @@ def _hash(password: str, salt: bytes) -> bytes:
     return hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
 
 
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 class Auth:
-    def __init__(self, db: Db, limits: Callable[[], tuple[int, int]], clock: Callable[[], float] = time.monotonic):
+    def __init__(self, db: Db, limits: Callable[[], tuple[int, int]], clock: Callable[[], float] = time.time):
         self._db = db
         self._clock = clock
         self._lockout = Lockout(limits, clock)
-        self._sessions: dict[str, float] = {}
 
     def configured(self) -> bool:
         return bool(self._db.run("SELECT 1 FROM meta WHERE key = 'password'"))
@@ -52,7 +55,8 @@ class Auth:
 
     def _new_session(self) -> str:
         token = secrets.token_urlsafe(32)
-        self._sessions[token] = self._clock() + SESSION_SECONDS
+        self._db.run("DELETE FROM sessions WHERE expires <= ?", (self._clock(),))
+        self._db.run("INSERT INTO sessions(token_hash, expires) VALUES (?, ?)", (_digest(token), self._clock() + SESSION_SECONDS))
         return token
 
     def setup(self, password: str) -> str:
@@ -71,16 +75,18 @@ class Auth:
         return self._new_session()
 
     def check(self, token: str) -> bool:
-        exp = self._sessions.get(token)
-        if exp is None:
+        if not token:
             return False
-        if self._clock() >= exp:
-            self._sessions.pop(token, None)
+        rows = self._db.run("SELECT expires FROM sessions WHERE token_hash = ?", (_digest(token),))
+        if not rows:
+            return False
+        if self._clock() >= rows[0]["expires"]:
+            self.logout(token)
             return False
         return True
 
     def logout(self, token: str) -> None:
-        self._sessions.pop(token, None)
+        self._db.run("DELETE FROM sessions WHERE token_hash = ?", (_digest(token),))
 
     def change_password(self, current: str, new: str, ip: str) -> str:
         if self._lockout.locked(ip):
@@ -89,5 +95,5 @@ class Auth:
             self._lockout.fail(ip)
             raise AuthError(401, "wrong password")
         self._store(new)
-        self._sessions.clear()  # every other device must log in again
+        self._db.run("DELETE FROM sessions")  # every other device must log in again
         return self._new_session()
