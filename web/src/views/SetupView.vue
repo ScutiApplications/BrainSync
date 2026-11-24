@@ -186,6 +186,7 @@ function flip(id: number, checked: boolean) {
           </div>
         </div>
         <div class="actions">
+          <button type="button" class="chip" :disabled="busy" @click="intro = true">Back</button>
           <button type="button" class="primary" :disabled="busy || !vaultId || !projectsRoot.trim() || !(claude || codex)" :aria-busy="busy" @click="plan">Review changes</button>
         </div>
       </div>
@@ -228,7 +229,7 @@ function flip(id: number, checked: boolean) {
     <section v-if="step === 3" class="admin-panel-card" aria-labelledby="setup-result">
       <header class="admin-panel-head">
         <h2 id="setup-result">3. Done</h2>
-        <div class="admin-panel-tools"><button type="button" class="chip" @click="back">Start again</button></div>
+        <div class="admin-panel-tools"><button type="button" class="chip" @click="back">Back to choose</button></div>
       </header>
       <table class="admin-records">
         <tbody>
