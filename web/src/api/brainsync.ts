@@ -18,7 +18,7 @@ export interface ShareStatus { active: boolean; code: string; peers: SharePeer[]
 export interface SetupOp { id: number; label: string; diff: string; manual: boolean }
 export interface SetupResult { id: number; label: string; status: string; detail: string }
 export interface VerifyRow { name: string; ok: boolean; detail: string }
-export interface SettingOption { key: string; label: string; help: string; kind: "int" | "str"; default: string | number; restart: boolean; min: number | null; max: number | null; value: string | number; changed: boolean }
+export interface SettingOption { key: string; label: string; help: string; kind: "int" | "str" | "bool" | "choice"; group: string; choices: string[]; default: string | number | boolean; restart: boolean; min: number | null; max: number | null; value: string | number | boolean; changed: boolean }
 export interface AuthStatus { configured: boolean; can_setup: boolean; authed: boolean }
 export interface AuditEntry { ts: string; event: string; [key: string]: unknown }
 
@@ -79,7 +79,7 @@ export const setupApi = {
 
 export const settingsApi = {
   list: async () => (await get<{ options: SettingOption[] }>("api/settings")).options,
-  set: async (key: string, value: string | number) => (await apiRequest<{ options: SettingOption[] }>("PUT", `api/settings/${key}`, { value })).options,
+  set: async (key: string, value: string | number | boolean) => (await apiRequest<{ options: SettingOption[] }>("PUT", `api/settings/${key}`, { value })).options,
   reset: async (key: string) => (await apiRequest<{ options: SettingOption[] }>("DELETE", `api/settings/${key}`)).options,
 };
 

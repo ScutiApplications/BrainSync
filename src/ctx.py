@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+from src.agents import JobManager
 from src.auth import Auth
 from src.config import Paths
 from src.settings import LiveSettings
@@ -21,6 +22,7 @@ class AppContext:
     auth: Auth
     vaults: VaultRegistry
     share: ShareManager
+    jobs: JobManager = field(default_factory=JobManager)
     conns: dict = field(default_factory=dict)  # connection id -> peer connection info
 
     def tmp_file(self, suffix: str = ".brainpack") -> Path:

@@ -13,13 +13,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
-from src import agent_setup
+from src import agent_setup, agents
 from src.ctx import AppContext
 from src.filters import Selection, select
 from src.importer import apply_import, build_preview
 from src.packager import read_manifest, write_pack
 from src.peer import PeerClient, PeerError
 from src.routes_auth import bearer
+from src.routes_sync import add_sync_routes
 from src.scanner import scan_vault
 from src.security import is_this_machine
 
@@ -86,7 +87,7 @@ class PullIn(BaseModel):
 
 
 class SettingIn(BaseModel):
-    value: int | str
+    value: bool | int | str
 
 
 class SetupIn(BaseModel):
@@ -103,6 +104,7 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
             raise HTTPException(401, "login required")
 
     r = APIRouter(prefix="/api", dependencies=[Depends(auth)])
+    add_sync_routes(r, ctx)
 
     def selection(vid: str, d: dict) -> Selection:
         sel = Selection.from_dict(d)
@@ -292,10 +294,8 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
     @r.get("/setup/detect")
     async def setup_detect():
         """Which agents look installed on this computer (config folder or command found)."""
-        home = ctx.paths.home
-        codex_home = Path(os.environ.get("CODEX_HOME") or home / ".codex")
-        return {"claude": (home / ".claude").is_dir() or bool(shutil.which("claude")),
-                "codex": codex_home.is_dir() or bool(shutil.which("codex"))}
+        st = agents.status(ctx.settings, ctx.paths.home)
+        return {"claude": st["claude"]["found"], "codex": st["codex"]["found"]}
 
     @r.post("/setup/plan")
     async def setup_plan(b: SetupIn):

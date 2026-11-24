@@ -36,7 +36,7 @@ def create_app(paths: Paths) -> FastAPI:
 
     @app.exception_handler(BrainSyncError)
     async def known_error(request: Request, exc: BrainSyncError):
-        return JSONResponse({"detail": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=getattr(exc, "status", 400))
 
     @app.get("/health")
     async def health():

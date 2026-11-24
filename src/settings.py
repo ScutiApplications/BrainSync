@@ -21,11 +21,13 @@ class Option:
     key: str
     label: str
     help: str
-    kind: str  # "int" | "str"
+    kind: str  # "int" | "str" | "bool" | "choice"
     default: Any
     restart: bool = False
     min: int | None = None
     max: int | None = None
+    group: str = "Behaviour"
+    choices: tuple[str, ...] = ()
 
 
 OPTIONS: tuple[Option, ...] = (
@@ -41,6 +43,29 @@ OPTIONS: tuple[Option, ...] = (
     Option("share_lock_seconds", "Lock time (seconds)",
            "How long an address stays locked after too many wrong tries.",
            "int", 60, min=5, max=3600),
+    Option("projects_root", "Projects folder",
+           "The folder that holds your code projects. The Sync page looks for git projects inside it. Empty uses the folder that holds the active vault.",
+           "str", "", group="Agents"),
+    Option("agent_claude_enabled", "Allow Claude Code",
+           "Let BrainSync start Claude Code to sync project notes and to check the Agent setup plan for duplicates.",
+           "bool", True, group="Agents"),
+    Option("agent_claude_command", "Claude Code command",
+           "Name or full path of the claude command. Empty finds it on the PATH. The file must be named claude.",
+           "str", "", group="Agents"),
+    Option("agent_codex_enabled", "Allow Codex",
+           "Let BrainSync start Codex to sync project notes and to check the Agent setup plan for duplicates.",
+           "bool", True, group="Agents"),
+    Option("agent_codex_command", "Codex command",
+           "Name or full path of the codex command. Empty finds it on the PATH. The file must be named codex.",
+           "str", "", group="Agents"),
+    Option("agent_default", "Default agent",
+           "The agent a sync or a duplicate check uses unless you pick another one.",
+           "choice", "claude", group="Agents", choices=("claude", "codex")),
+    Option("agent_timeout_min", "Agent time limit (minutes)",
+           "An agent run that takes longer is stopped.", "int", 10, min=1, max=120, group="Agents"),
+    Option("sync_after", "After a project sync",
+           "What BrainSync does with the vault when a sync finishes. Commit and push only push when the vault already has a remote; BrainSync never adds one.",
+           "choice", "nothing", group="Agents", choices=("nothing", "commit", "commit_push")),
     Option("bind", "Listen address",
            "Network address the service listens on. Keep 0.0.0.0 so ServiceHub and other devices can reach it. "
            "Applies at the next start.", "str", "0.0.0.0", restart=True),
@@ -50,16 +75,33 @@ OPTIONS: tuple[Option, ...] = (
 _BY_KEY = {o.key: o for o in OPTIONS}
 
 
+_COMMAND_NAMES = {"agent_claude_command": "claude", "agent_codex_command": "codex"}
+
+
 def _check(opt: Option, value: Any) -> Any:
+    if opt.kind == "bool":
+        if not isinstance(value, bool):
+            raise SettingError("value must be on or off")
+        return value
+    if opt.kind == "choice":
+        if value not in opt.choices:
+            raise SettingError("value must be one of: " + ", ".join(opt.choices))
+        return value
     if opt.kind == "int":
         if isinstance(value, bool) or not isinstance(value, int):
             raise SettingError("value must be a whole number")
         if (opt.min is not None and value < opt.min) or (opt.max is not None and value > opt.max):
             raise SettingError(f"value must be between {opt.min} and {opt.max}")
         return value
-    if not isinstance(value, str) or len(value) > 64:
-        raise SettingError("value must be text of at most 64 characters")
+    if not isinstance(value, str) or len(value) > 260:
+        raise SettingError("value must be text of at most 260 characters")
     value = value.strip()
+    want = _COMMAND_NAMES.get(opt.key)
+    if want and value:
+        name = value.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        stem, _, ext = name.partition(".")
+        if stem != want or ext not in ("", "exe", "cmd", "bat"):
+            raise SettingError(f"the command file must be named {want}")
     if opt.key == "bind":
         try:
             ipaddress.ip_address(value)
@@ -95,7 +137,8 @@ class LiveSettings:
         with self._lock:
             vals = self._load()
             return [{"key": o.key, "label": o.label, "help": o.help, "kind": o.kind, "default": o.default,
-                     "restart": o.restart, "min": o.min, "max": o.max, "value": vals.get(o.key, o.default),
+                     "restart": o.restart, "min": o.min, "max": o.max, "group": o.group,
+                     "choices": list(o.choices), "value": vals.get(o.key, o.default),
                      "changed": o.key in vals} for o in OPTIONS]
 
     def set(self, key: str, value: Any) -> Any:
