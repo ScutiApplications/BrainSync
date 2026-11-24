@@ -27,6 +27,10 @@ const picking = ref(false);
 const error = ref("");
 const confirmOpen = ref(false);
 
+/** An agent that is not installed here is hidden. If neither is found, show both so setup can still be prepared. */
+const neitherFound = computed(() => !found.value.claude && !found.value.codex);
+const showClaude = computed(() => found.value.claude || neitherFound.value);
+const showCodex = computed(() => found.value.codex || neitherFound.value);
 const vault = computed(() => vaults.value.find((v) => v.id === vaultId.value) ?? null);
 const body = computed<SetupBody>(() => ({ vault_id: vaultId.value, projects_root: projectsRoot.value, claude: claude.value, codex: codex.value, selected: [...on.value] }));
 /** 0 = read first, 1 = choose, 2 = review, 3 = done. */
@@ -173,13 +177,13 @@ function flip(id: number, checked: boolean) {
           </div>
         </div>
         <div class="field wide">
-          <FieldLabel title="Set up for" bare><p>Pick the agents to configure. Both are ticked when both are installed here. Codex skill links need Windows Developer Mode.</p></FieldLabel>
+          <FieldLabel title="Set up for" bare><p>Only agents installed on this computer are shown, and they start ticked. Codex skill links need Windows Developer Mode.</p></FieldLabel>
           <div class="agents">
-            <div class="agent">
+            <div v-if="showClaude" class="agent">
               <ToggleSwitch :checked="claude" @change="claude = ($event.target as HTMLInputElement).checked">Claude Code</ToggleSwitch>
               <span class="status-pill" :class="{ ok: found.claude }">{{ found.claude ? "Found on this computer" : "Not found" }}</span>
             </div>
-            <div class="agent">
+            <div v-if="showCodex" class="agent">
               <ToggleSwitch :checked="codex" @change="codex = ($event.target as HTMLInputElement).checked">Codex</ToggleSwitch>
               <span class="status-pill" :class="{ ok: found.codex }">{{ found.codex ? "Found on this computer" : "Not found" }}</span>
             </div>
