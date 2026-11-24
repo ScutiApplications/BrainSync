@@ -176,11 +176,11 @@ function flip(id: number, checked: boolean) {
           <FieldLabel title="Set up for" bare><p>Pick the agents to configure. Both are ticked when both are installed here. Codex skill links need Windows Developer Mode.</p></FieldLabel>
           <div class="agents">
             <div class="agent">
-              <ToggleSwitch v-model="claude">Claude Code</ToggleSwitch>
+              <ToggleSwitch :checked="claude" @change="claude = ($event.target as HTMLInputElement).checked">Claude Code</ToggleSwitch>
               <span class="status-pill" :class="{ ok: found.claude }">{{ found.claude ? "Found on this computer" : "Not found" }}</span>
             </div>
             <div class="agent">
-              <ToggleSwitch v-model="codex">Codex</ToggleSwitch>
+              <ToggleSwitch :checked="codex" @change="codex = ($event.target as HTMLInputElement).checked">Codex</ToggleSwitch>
               <span class="status-pill" :class="{ ok: found.codex }">{{ found.codex ? "Found on this computer" : "Not found" }}</span>
             </div>
           </div>

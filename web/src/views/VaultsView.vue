@@ -204,7 +204,7 @@ async function create() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
           </button>
         </div>
-        <ToggleSwitch v-model="createFolder" :disabled="busy">Create the folder (new or empty only)</ToggleSwitch>
+        <ToggleSwitch :checked="createFolder" @change="createFolder = ($event.target as HTMLInputElement).checked" :disabled="busy">Create the folder (new or empty only)</ToggleSwitch>
         <p class="muted">Without this the folder must already be a Brain vault: it needs <code>.obsidian</code> and <code>AGENTS.md</code>.</p>
         <ActionMessage v-if="createError" kind="error" :text="createError" />
       </form>

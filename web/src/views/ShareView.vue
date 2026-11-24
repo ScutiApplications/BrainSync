@@ -124,7 +124,7 @@ async function revoke(id: string) {
       <form id="share-start" class="admin-editor" @submit.prevent="start">
         <p v-if="!vaults.length" class="muted">Add a vault first.</p>
         <section v-for="v in vaults" :key="v.id" class="share-vault">
-          <ToggleSwitch v-model="picks[v.id]!.on" :disabled="pending">{{ v.name }}</ToggleSwitch>
+          <ToggleSwitch :checked="picks[v.id]!.on" @change="picks[v.id]!.on = ($event.target as HTMLInputElement).checked" :disabled="pending">{{ v.name }}</ToggleSwitch>
           <template v-if="picks[v.id]?.on">
             <FieldLabel title="Paths to share" :for="`sp-${v.id}`"><p>Globs separated by commas, for example <code>Notes/*, Projects/*</code>. Empty shares every note that is not private.</p></FieldLabel>
             <input :id="`sp-${v.id}`" v-model="picks[v.id]!.paths" type="text" spellcheck="false" :disabled="pending" />
