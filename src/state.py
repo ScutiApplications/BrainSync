@@ -53,6 +53,11 @@ class State:
                            (_check_id(vault_id), _check_id(peer_id)))
         return {r["path"]: r["sha"] for r in rows}
 
+    def list_peers(self, vault_id: str) -> list[str]:
+        """Device ids this vault has synced with before."""
+        rows = self.db.run("SELECT DISTINCT peer_id FROM bases WHERE vault_id = ? ORDER BY peer_id", (_check_id(vault_id),))
+        return [r[0] for r in rows]
+
     def update_base(self, vault_id: str, peer_id: str, updates: dict[str, str]) -> None:
         _check_id(vault_id), _check_id(peer_id)
         self.db.run_many("INSERT OR REPLACE INTO bases(vault_id, peer_id, path, sha) VALUES (?, ?, ?, ?)",

@@ -44,6 +44,7 @@ export const vaultApi = {
   add: (name: string, path: string, create: boolean) => post<Vault>("api/vaults", { name, path, create }),
   remove: (id: string) => apiRequest<{ ok: boolean }>("DELETE", `api/vaults/${id}`),
   setPrivateFolders: (id: string, folders: string[]) => apiRequest<{ ok: boolean }>("PUT", `api/vaults/${id}/private-folders`, { folders }),
+  peers: async (id: string) => (await get<{ peers: string[] }>(`api/vaults/${id}/peers`)).peers,
   setActive: (id: string) => post<{ ok: boolean }>(`api/vaults/${id}/active`),
   select: (id: string, selection: SelectionBody) => post<{ all: Item[]; selected: string[] }>(`api/vaults/${id}/select`, { selection }),
   exportPack: (id: string, selection: SelectionBody) => apiRequest<Blob>("POST", `api/vaults/${id}/export`, { selection }, { blob: true }),

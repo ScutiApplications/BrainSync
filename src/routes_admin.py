@@ -117,6 +117,11 @@ def build_admin_router(ctx: AppContext) -> APIRouter:
     async def add_vault(b: VaultIn):
         return await asyncio.to_thread(ctx.vaults.add, b.name, b.path, b.create)
 
+    @r.get("/vaults/{vid}/peers")
+    async def vault_peers(vid: str):
+        ctx.vaults.get(vid)
+        return {"peers": ctx.state.list_peers(vid)}
+
     @r.delete("/vaults/{vid}")
     async def del_vault(vid: str):
         ctx.vaults.remove(vid)
